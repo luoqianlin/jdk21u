@@ -26,17 +26,15 @@
 package sun.awt.X11;
 
 
-import sun.awt.UNIXToolkit;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 import java.awt.Desktop.Action;
 import java.awt.peer.DesktopPeer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 
@@ -48,9 +46,11 @@ import java.util.List;
  */
 public class XDesktopPeer implements DesktopPeer {
 
-    // supportedActions may be changed from native within an init() call
-    private static final List<Action> supportedActions
-            = new ArrayList<>(Arrays.asList(Action.OPEN, Action.MAIL, Action.BROWSE));
+    private static final int OPEN_ACTION = 1;
+    private static final int MAIL_ACTION = 1 << 1;
+    private static final int BROWSE_ACTION = 1 << 2;
+
+    private static final List<Action> supportedActions = new ArrayList<>();
 
     private static boolean nativeLibraryLoaded = false;
     private static boolean initExecuted = false;
@@ -59,8 +59,17 @@ public class XDesktopPeer implements DesktopPeer {
         XToolkit.awtLock();
         try {
             if (!initExecuted) {
-                nativeLibraryLoaded = init(UNIXToolkit.getEnabledGtkVersion()
-                        .getNumber(), UNIXToolkit.isGtkVerbose());
+                int actions = init();
+                nativeLibraryLoaded = actions != 0;
+                if ((actions & OPEN_ACTION) != 0) {
+                    supportedActions.add(Action.OPEN);
+                }
+                if ((actions & MAIL_ACTION) != 0) {
+                    supportedActions.add(Action.MAIL);
+                }
+                if ((actions & BROWSE_ACTION) != 0) {
+                    supportedActions.add(Action.BROWSE);
+                }
             }
         } finally {
             initExecuted = true;
@@ -109,14 +118,14 @@ public class XDesktopPeer implements DesktopPeer {
     }
 
     private void launch(URI uri) throws IOException {
-        byte[] uriByteArray = ( uri.toString() + '\0' ).getBytes();
+        byte[] uriByteArray = (uri.toString() + '\0').getBytes(StandardCharsets.UTF_8);
         boolean result = false;
         XToolkit.awtLock();
         try {
             if (!nativeLibraryLoaded) {
                 throw new IOException("Failed to load native libraries.");
             }
-            result = gnome_url_show(uriByteArray);
+            result = openURI(uriByteArray);
         } finally {
             XToolkit.awtUnlock();
         }
@@ -125,6 +134,6 @@ public class XDesktopPeer implements DesktopPeer {
         }
     }
 
-    private native boolean gnome_url_show(byte[] url);
-    private static native boolean init(int gtkVersion, boolean verbose);
+    private native boolean openURI(byte[] url) throws IOException;
+    private static native int init();
 }
