@@ -28,46 +28,29 @@
 #endif
 
 #include "jni_util.h"
-#include "gtk_interface.h"
-#include "gnome_interface.h"
-
-static gboolean gtk_has_been_loaded = FALSE;
-static gboolean gnome_has_been_loaded = FALSE;
+#include "gio_interface.h"
 
 /*
  * Class:     sun_awt_X11_XDesktopPeer
  * Method:    init
- * Signature: ()Z
+ * Signature: ()I
  */
-JNIEXPORT jboolean JNICALL Java_sun_awt_X11_XDesktopPeer_init
-  (JNIEnv *env, jclass cls, jint version, jboolean verbose)
+JNIEXPORT jint JNICALL Java_sun_awt_X11_XDesktopPeer_init
+  (JNIEnv *env, jclass cls)
 {
-
-    if (gtk_has_been_loaded || gnome_has_been_loaded) {
-        return JNI_TRUE;
-    }
-
-    if (gtk_load(env, version, verbose) && gtk->show_uri_load(env)) {
-        gtk_has_been_loaded = TRUE;
-        return JNI_TRUE;
-    } else if (gnome_load()) {
-        gnome_has_been_loaded = TRUE;
-        return JNI_TRUE;
-    }
-
-    return JNI_FALSE;
+    return gio_load() ? gio_supported_actions() : 0;
 }
 
 /*
  * Class:     sun_awt_X11_XDesktopPeer
- * Method:    gnome_url_show
- * Signature: (Ljava/lang/[B;)Z
+ * Method:    openURI
+ * Signature: ([B)Z
  */
-JNIEXPORT jboolean JNICALL Java_sun_awt_X11_XDesktopPeer_gnome_1url_1show
+JNIEXPORT jboolean JNICALL Java_sun_awt_X11_XDesktopPeer_openURI
   (JNIEnv *env, jobject obj, jbyteArray url_j)
 {
-    gboolean success = FALSE;
-    const gchar* url_c;
+    jboolean success;
+    const char* url_c;
 
     url_c = (char*)(*env)->GetByteArrayElements(env, url_j, NULL);
     if (url_c == NULL) {
@@ -77,15 +60,9 @@ JNIEXPORT jboolean JNICALL Java_sun_awt_X11_XDesktopPeer_gnome_1url_1show
         return JNI_FALSE;
     }
 
-    if (gtk_has_been_loaded) {
-        gtk->gdk_threads_enter();
-        success = gtk->gtk_show_uri(NULL, url_c, GDK_CURRENT_TIME, NULL);
-        gtk->gdk_threads_leave();
-    } else if (gnome_has_been_loaded) {
-        success = (*gnome_url_show)(url_c, NULL);
-    }
+    success = gio_show_uri(env, url_c);
 
-    (*env)->ReleaseByteArrayElements(env, url_j, (signed char*)url_c, 0);
+    (*env)->ReleaseByteArrayElements(env, url_j, (signed char*)url_c, JNI_ABORT);
 
-    return success ? JNI_TRUE : JNI_FALSE;
+    return success;
 }

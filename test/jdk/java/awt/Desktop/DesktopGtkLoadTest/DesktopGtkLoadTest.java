@@ -25,8 +25,7 @@
  * @test
  * @key headful
  * @bug 8157827
- * @summary AWT_Desktop/Automated/Exceptions/BasicTest loads incorrect GTK
- * version when jdk.gtk.version=3
+ * @summary Desktop uses GIO without loading a GTK toolkit
  * @requires (os.family == "linux")
  * @run main DesktopGtkLoadTest
  */
@@ -47,21 +46,24 @@ public class DesktopGtkLoadTest {
                 "/bin/java -Djdk.gtk.version=3 -Djdk.gtk.verbose=true " +
                 "-cp " + System.getProperty("java.class.path", ".") +
                 " DesktopGtkLoadTest$RunDesktop");
-        p.waitFor();
+        if (!p.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) {
+            p.destroyForcibly();
+            throw new RuntimeException("Desktop initialization timed out");
+        }
+        if (p.exitValue() != 0) {
+            throw new RuntimeException("Desktop initialization failed: " + p.exitValue());
+        }
         try (BufferedReader br = new BufferedReader(
                                    new InputStreamReader(p.getErrorStream()))) {
             String line;
             while ((line = br.readLine()) != null) {
                 System.out.println(line);
-                if (line.contains("Looking for GTK2 library")) {
-                    break;
-                }
-                if (line.contains("Looking for GTK3 library")) {
-                    return;
+                if (line.contains("Looking for GTK")) {
+                    throw new RuntimeException("Desktop must not initialize GTK: " + line);
                 }
             }
-            throw new RuntimeException("Wrong GTK library version: \n" + line);
         }
+
 
     }
 
